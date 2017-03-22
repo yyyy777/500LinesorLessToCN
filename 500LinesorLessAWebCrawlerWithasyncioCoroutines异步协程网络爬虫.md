@@ -787,13 +787,13 @@ Satisfied with this exposition, we return to our original assignment: to write a
 ## Coordinating Coroutines
 
 We began by describing how we want our crawler to work. Now it is time to implement it with asyncio coroutines.
-
+我们开始描述我们希望我们的爬虫如何工作。 现在是时候实现它与asyncio协程。
 Our crawler will fetch the first page, parse its links, and add them to a queue. After this it fans out across the website, fetching pages concurrently. But to limit load on the client and server, we want some maximum number of workers to run, and no more. Whenever a worker finishes fetching a page, it should immediately pull the next link from the queue. We will pass through periods when there is not enough work to go around, so some workers must pause. But when a worker hits a page rich with new links, then the queue suddenly grows and any paused workers should wake and get cracking. Finally, our program must quit once its work is done.
-
+我们的抓取工具会抓取第一页，解析其链接，并将其添加到队列中。 在这之后，它退出网站，同时抓取页面。 但是为了限制客户端和服务器上的负载，我们希望运行一些最大数量的worker，并且不会更多。 每当一个worker完成提取页面时，它应该立即从队列中拉下一个链接。 当没有足够的工作量时，我们会暂停一些worker。 但是当一个worker点击一个富有新链接的页面时，队列突然增长，任何暂停的worker都应该醒来并开始工作。 最后，我们的程序必须在其工作完成后退出。
 Imagine if the workers were threads. How would we express the crawler's algorithm? We could use a synchronized queue[^5] from the Python standard library. Each time an item is put in the queue, the queue increments its count of "tasks". Worker threads call `task_done` after completing work on an item. The main thread blocks on `Queue.join` until each item put in the queue is matched by a `task_done` call, then it exits.
-
+想象一下，如果workers 是线程。 我们将如何表达爬虫的算法？ 我们可以使用来自Python标准库的同步队列[^ 5]。 每次将项目放入队列时，队列都会增加其“任务”的计数。 工作线程在完成对项目的工作后调用`task_done`。 `Queue.join`中的主线程直到每个项目放入队列后阻塞，然后通过`task_done`调用来匹配，然后退出。
 Coroutines use the exact same pattern with an asyncio queue! First we import it[^6]:
-
+协程使用与asyncio队列完全相同的模式！ 首先我们导入它[^ 6]：
 ```python
 try:
     from asyncio import JoinableQueue as Queue
@@ -804,7 +804,7 @@ except ImportError:
 ```
 
 We collect the workers' shared state in a crawler class, and write the main logic in its `crawl` method. We start `crawl` on a coroutine and run asyncio's event loop until `crawl` finishes:
-
+我们在爬虫类中收集workers的共享状态，并在其`crawl`方法中编写主逻辑。 我们在协程上启动`crawl`并运行asyncio的事件循环，直到`crawl`完成：
 ```python
 loop = asyncio.get_event_loop()
 
@@ -815,7 +815,7 @@ loop.run_until_complete(crawler.crawl())
 ```
 
 The crawler begins with a root URL and `max_redirect`, the number of redirects it is willing to follow to fetch any one URL. It puts the pair `(URL, max_redirect)` in the queue. (For the reason why, stay tuned.)
-
+爬虫以根网址和`max_redirect`开头，the number of redirects it is willing to follow to fetch any one URL（不知道怎么翻译比较好...先放在这） 它将`(URL, max_redirect)`放在队列中。 （为什么，请继续关注。）
 ```python
 class Crawler:
     def __init__(self, root_url, max_redirect):
@@ -833,13 +833,13 @@ class Crawler:
 ```
 
 The number of unfinished tasks in the queue is now one. Back in our main script, we launch the event loop and the `crawl` method:
-
+队列中未完成任务的数量现在为1。 回到我们的主脚本，我们启动事件循环和`crawl`方法：
 ```python
 loop.run_until_complete(crawler.crawl())
 ```
 
 The `crawl` coroutine kicks off the workers. It is like a main thread: it blocks on `join` until all tasks are finished, while the workers run in the background.
-
+ `crawl`协程启动workers。 它像一个主线程：它阻塞在`join`，直到所有任务完成，而workers 在后台运行。
 ```python
     @asyncio.coroutine
     def crawl(self):
@@ -854,15 +854,15 @@ The `crawl` coroutine kicks off the workers. It is like a main thread: it blocks
 ```
 
 If the workers were threads we might not wish to start them all at once. To avoid creating expensive threads until it is certain they are necessary, a thread pool typically grows on demand. But coroutines are cheap, so we simply start the maximum number allowed.
-
+如果workers 是线程，我们可能不希望立即启动它们。 以避免在确定需要之前创建昂贵的线程，线程池通常根据需要增长。 但协程很便宜，所以我们简单的启动允许的最大数量。
 It is interesting to note how we shut down the crawler. When the `join` future resolves, the worker tasks are alive but suspended: they wait for more URLs but none come. So, the main coroutine cancels them before exiting. Otherwise, as the Python interpreter shuts down and calls all objects' destructors, living tasks cry out:
-
+有趣的是，我们注意到我们如何关闭爬虫。 当`join`future 解析时，worker 任务活着但是被暂停：它们等待更多的URL，但没有来到。 因此，主协程在退出之前取消它们。 否则，当Python解释器关闭并调用所有对象的析构函数时，存活的任务崩溃了：
 ```
 ERROR:asyncio:Task was destroyed but it is pending!
 ```
 
 And how does `cancel` work? Generators have a feature we have not yet shown you. You can throw an exception into a generator from outside:
-
+`cancel`是如何工作的？ 生成器具有我们尚未向您展示的功能。 您可以从外部将异常抛出到生成器中：
 ```python
 >>> gen = gen_fn()
 >>> gen.send(None)  # Start the generator as usual.
@@ -875,7 +875,7 @@ Exception: error
 ```
 
 The generator is resumed by `throw`, but it is now raising an exception. If no code in the generator's call stack catches it, the exception bubbles back up to the top. So to cancel a task's coroutine:
-
+生成器由`throw`恢复，但它现在引发异常。 如果生成器的调用栈中没有代码捕获它，则异常冒泡回到顶部。 所以为了取消任务的协程：
 ```python
     # Method of Task class.
     def cancel(self):
@@ -883,7 +883,7 @@ The generator is resumed by `throw`, but it is now raising an exception. If no c
 ```
 
 Wherever the generator is paused, at some `yield from` statement, it resumes and throws an exception. We handle cancellation in the task's `step` method:
-
+无论生成器何时暂停，在某些`yield from`语句中，它会恢复并抛出异常。 我们在任务的`step`方法中处理取消：
 ```python
     # Method of Task class.
     def step(self, future):
@@ -899,15 +899,15 @@ Wherever the generator is paused, at some `yield from` statement, it resumes and
 ```
 
 Now the task knows it is cancelled, so when it is destroyed it does not rage against the dying of the light.
-
+现在任务知道它被取消，所以当它被销毁时，它不愤怒反对死亡。
 Once `crawl` has canceled the workers, it exits. The event loop sees that the coroutine is complete (we shall see how later), and it too exits:
-
+一旦`crawl`取消了workers，它就退出了。 事件循环看到协程是完成了的（我们将看到稍后），它也退出：
 ```python
 loop.run_until_complete(crawler.crawl())
 ```
 
 The `crawl` method comprises all that our main coroutine must do. It is the worker coroutines that get URLs from the queue, fetch them, and parse them for new links. Each worker runs the `work` coroutine independently:
-
+`crawl`方法包括我们的主协程必须做的所有事情。 它是worker 协程，从队列获取URL，获取它们，并解析它们的新链接。 每个worker 独立运行`work`协同程序：
 ```python
     @asyncio.coroutine
     def work(self):
@@ -920,43 +920,39 @@ The `crawl` method comprises all that our main coroutine must do. It is the work
 ```
 
 Python sees that this code contains `yield from` statements, and compiles it into a generator function. So in `crawl`, when the main coroutine calls `self.work` ten times, it does not actually execute this method: it only creates ten generator objects with references to this code. It wraps each in a Task. The Task receives each future the generator yields, and drives the generator by calling `send` with each future's result when the future resolves. Because the generators have their own stack frames, they run independently, with separate local variables and instruction pointers.
-
+Python看到这个代码包含yield from语句，并将其编译成一个生成器函数。 因此，在爬虫运行时，当主协程调用 `self.work` 十次时，它实际上不执行此方法：它只创建十个生成器对象引用此代码。 它将每个任务包装在一个Task中。 任务接收每个未来的生成器 yields，并通过在未来结算时通过调用`send` 与每个future的结果来驱动生成器。 因为生成器具有自己的堆栈帧，所以它们独立运行，具有单独的局部变量和指令指针。
 The worker coordinates with its fellows via the queue. It waits for new URLs with:
-
+worker 通过队列与其同事协调。 它等待具有以下内容的新网址：
 ```python
     url, max_redirect = yield from self.q.get()
 ```
 
 The queue's `get` method is itself a coroutine: it pauses until someone puts an item in the queue, then resumes and returns the item.
-
+队列的`get`方法本身是一个协程：它将暂停，直到有人将一个项目放入队列，然后就会恢复并返回项目。
 Incidentally, this is where the worker will be paused at the end of the crawl, when the main coroutine cancels it. From the coroutine's perspective, its last trip around the loop ends when `yield from` raises a `CancelledError`.
-
+顺便说一下，当主协程取消它，worker 将在爬取结束时暂停。 从协程的角度来看，当“yield from”引发一个“CancelledError”时，它的最后一次循环结束。
 When a worker fetches a page it parses the links and puts new ones in the queue, then calls `task_done` to decrement the counter. Eventually, a worker fetches a page whose URLs have all been fetched already, and there is also no work left in the queue. Thus this worker's call to `task_done` decrements the counter to zero. Then `crawl`, which is waiting for the queue's `join` method, is unpaused and finishes.
-
+当worker 提取页面时，它会解析链接并将新的链接放入队列，然后调用`task_done`来递减计数器。 最终，worker 获取已经获取了URL的页面，并且队列中也没有剩余的工作。 因此，这个worker 对“task_done”的调用将计数器减少为零。 然后， `crawl`，它等待队列的`join`方法，被取消暂停并完成。
 We promised to explain why the items in the queue are pairs, like:
-
+我们承诺过解释为什么队列中的项目是成对的，如：
 ```python
 # URL to fetch, and the number of redirects left.
 ('http://xkcd.com/353', 10)
 ```
 
 New URLs have ten redirects remaining. Fetching this particular URL results in a redirect to a new location with a trailing slash. We decrement the number of redirects remaining, and put the next location in the queue:
-
+新网址有十个重定向。 获取此特定网址会导致重定向到带有尾部斜杠的新位置。 我们减少剩余的重定向数，并将下一个位置放入队列：
 ```python
 # URL with a trailing slash. Nine redirects left.
 ('http://xkcd.com/353/', 9)
 ```
 
 The `aiohttp` package we use would follow redirects by default and give us the final response. We tell it not to, however, and handle redirects in the crawler, so it can coalesce redirect paths that lead to the same destination: if we have already seen this URL, it is in ``self.seen_urls`` and we have already started on this path from a different entry point:
-
+我们使用的`aiohttp`包将遵循默认的重定向，并给我们最后的响应。 然而，我们告诉它不会在抓取工具中处理重定向，所以它可以合并到重定向路径，导致相同的目标：如果我们已经看到这个URL，它在``self.seen_urls``，我们已经 在此路径上从不同的入口点启动：
 \aosafigure[240pt]{crawler-images/redirects.png}{Redirects}{500l.crawler.redirects}
 
-The crawler fetches "foo" and sees it redirects to "baz", so it adds "baz" to
-the queue and to ``seen_urls``. If the next page it fetches is "bar", which
-also redirects to "baz", the fetcher does not enqueue "baz" again. If the
-response is a page, rather than a redirect, `fetch` parses it for links and
-puts new ones in the queue.
-
+The crawler fetches "foo" and sees it redirects to "baz", so it adds "baz" to the queue and to ``seen_urls``. If the next page it fetches is "bar", which also redirects to "baz", the fetcher does not enqueue "baz" again. If the response is a page, rather than a redirect, `fetch` parses it for links and puts new ones in the queue.
+抓取工具获取“foo”并且看到它重定向到“baz”，因此它将“baz”添加到队列和``seen_urls``。 如果它获取的下一页是“bar”，它也重定向到“baz”，抓取器不会再次入队“baz”。 如果响应是一个页面，而不是一个重定向，`fetch`解析它的链接，并将新的队列中。
 ```python
     @asyncio.coroutine
     def fetch(self, url, max_redirect):
@@ -989,17 +985,17 @@ puts new ones in the queue.
 ```
 
 If this were multithreaded code, it would be lousy with race conditions. For example, the worker checks if a link is in `seen_urls`, and if not the worker puts it in the queue and adds it to `seen_urls`. If it were interrupted between the two operations, then another worker might parse the same link from a different page, also observe that it is not in `seen_urls`, and also add it to the queue. Now that same link is in the queue twice, leading (at best) to duplicated work and wrong statistics.
-
+如果这是多线程代码，它将是讨厌的条件竞争。 例如，worker 检查链接是否在`seen_urls`中，如果不是，则将其放入队列并将其添加到`seen_urls`中。 如果它在两个操作之间中断，则另一个worker 可能从不同的页面解析相同的链接，还观察到它不在`seen_urls`，并且也将其添加到队列。 现在同一个链接在队列中两次，导致（顶多）重复的工作和错误的统计。
 However, a coroutine is only vulnerable to interruption at `yield from` statements. This is a key difference that makes coroutine code far less prone to races than multithreaded code: multithreaded code must enter a critical section explicitly, by grabbing a lock, otherwise it is interruptible. A Python coroutine is uninterruptible by default, and only cedes control when it explicitly yields.
-
+但是，协程只受到`yield from`语句中断的影响。 这是一个关键区别，使得协同代码比多线程代码更不容易发生竞争：多线程代码必须通过抓取锁来显式地进入临界区，否则它是可中断的。 Python协程在默认情况下是不可中断的，并且只有在它显式产生时才控制。
 We no longer need a fetcher class like we had in the callback-based program. That class was a workaround for a deficiency of callbacks: they need some place to store state while waiting for I/O, since their local variables are not preserved across calls. But the `fetch` coroutine can store its state in local variables like a regular function does, so there is no more need for a class.
-
+我们不再需要像我们在基于回调的程序中一样的fetcher类。 该类是回调不足的解决方法：在等待I / O时，它们需要一些地方来存储状态，因为它们的局部变量不会跨越调用保留。 但是`fetch`协程可以像常规函数那样将其状态存储在局部变量中，因此不再需要类。
 When `fetch` finishes processing the server response it returns to the caller, `work`. The `work` method calls `task_done` on the queue and then gets the next URL from the queue to be fetched.
-
+当`fetch`完成处理服务器响应时，它返回到调用者`work`。 `work`方法在队列上调用`task_done`，然后从队列中获取下一个要获取的URL。
 When `fetch` puts new links in the queue it increments the count of unfinished tasks and keeps the main coroutine, which is waiting for `q.join`, paused. If, however, there are no unseen links and this was the last URL in the queue, then when `work` calls `task_done` the count of unfinished tasks falls to zero. That event unpauses `join` and the main coroutine completes.
-
+当`fetch`将新的链接放入队列时，它增加未完成任务的计数，并保持主协程，等待`q.join`，暂停。 然而，如果没有unseen links，这是队列中的最后一个URL，那么当`work`调用`task_done`时，未完成任务的计数降为零。 该事件取消了`join`并且主协程完成。
 The queue code that coordinates the workers and the main coroutine is like this[^9]:
-
+协调workers 和主协程的队列代码是这样的[^ 9]：
 ```python
 class Queue:
     def __init__(self):
@@ -1023,15 +1019,15 @@ class Queue:
 ```
 
 The main coroutine, `crawl`, yields from `join`. So when the last worker decrements the count of unfinished tasks to zero, it signals `crawl` to resume, and finish.
-
+主协程`crawl`从 `join`中产生。 因此，当最后一个工人将未完成任务的计数减少为零时，它指示`crawl`恢复并且完成。
 The ride is almost over. Our program began with the call to `crawl`:
-
+我们的程序从调用`crawl`开始：
 ```python
 loop.run_until_complete(self.crawler.crawl())
 ```
 
 How does the program end? Since `crawl` is a generator function, calling it returns a generator. To drive the generator, asyncio wraps it in a task:
-
+程序如何结束？ 因为`crawl` '是一个生成器函数，所以调用它会返回一个生成器。 为了驱动生成器，asyncio将它包装在一个任务中：
 ```python
 class EventLoop:
     def run_until_complete(self, coro):
@@ -1051,16 +1047,16 @@ def stop_callback(future):
 ```
 
 When the task completes, it raises `StopError `, which the loop uses as a signal that it has arrived at normal completion.
-
+当任务完成时，它引发StopError，loop 作为它已经到达正常完成的信号。
 But what's this? The task has methods called `add_done_callback` and `result`? You might think that a task resembles a future. Your instinct is correct. We must admit a detail about the Task class we hid from you: a task is a future.
-
+但是这是什么？ task 有称为`add_done_callback`和`result`的方法？ 你可能认为任务类似于future。 你的直觉是正确的。 我们必须承认我们隐藏的任务类的细节：一个任务是一个future。
 ```python
 class Task(Future):
     """A coroutine wrapped in a Future."""
 ```
 
 Normally a future is resolved by someone else calling `set_result` on it. But a task resolves *itself* when its coroutine stops. Remember from our earlier exploration of Python generators that when a generator returns, it throws the special `StopIteration` exception:
-
+通常，future 由其他人调用`set_result`解决。 但是一个任务在它的协程停止时自行解决。 记住我们早期探索Python生成器时，当一个生成器返回时，它会抛出特殊的StopIteration异常：
 ```python
     # Method of class Task.
     def step(self, future):
@@ -1080,7 +1076,7 @@ Normally a future is resolved by someone else calling `set_result` on it. But a 
 ```
 
 So when the event loop calls `task.add_done_callback(stop_callback)`, it prepares to be stopped by the task. Here is `run_until_complete` again:
-
+所以当事件循环调用`task.add_done_callback（stop_callback）`时，它准备被任务停止。 这里是`run_until_complete`：
 ```python
     # Method of event loop.
     def run_until_complete(self, coro):
@@ -1093,21 +1089,22 @@ So when the event loop calls `task.add_done_callback(stop_callback)`, it prepare
 ```
 
 When the task catches `StopIteration` and resolves itself, the callback raises `StopError` from within the loop. The loop stops and the call stack is unwound to `run_until_complete`. Our program is finished.
+当任务捕获`StopIteration`并且自己解析时，回调从循环中引发`StopError`。 循环停止，调用堆栈解开为`run_until_complete`。 我们的程序完成了。
 
-## Conclusion
+## Conclusion 结论
 
 Increasingly often, modern programs are I/O-bound instead of CPU-bound. For such programs, Python threads are the worst of both worlds: the global interpreter lock prevents them from actually executing computations in parallel, and preemptive switching makes them prone to races. Async is often the right pattern. But as callback-based async code grows, it tends to become a dishevelled mess. Coroutines are a tidy alternative. They factor naturally into subroutines, with sane exception handling and stack traces.
-
+越来越多地，现代程序是I / O绑定而不是CPU绑定。 对于这样的程序，Python线程是很糟糕的：全局解释器锁防止它们实际上并行执行计算，并且抢先切换使它们容易出现竞争。 异步通常是正确的模式。 但是随着基于回调的异步代码的增长，它往往成为一个混乱的混乱。 协程是一个整洁的替代品。 他们自然地考虑子程序，具有正确的异常处理和堆栈跟踪。
 If we squint so that the `yield from` statements blur, a coroutine looks like a thread doing traditional blocking I/O. We can even coordinate coroutines with classic patterns from multi-threaded programming. There is no need for reinvention. Thus, compared to callbacks, coroutines are an inviting idiom to the coder experienced with multithreading.
-
+如果我们眯着眼睛，使得`yield from`语句模糊，协程看起来像是执行传统的阻塞I / O的线程。 我们甚至可以使用多线程编程中的经典模式来协调协程。 没有必要改造。 
 But when we open our eyes and focus on the `yield from` statements, we see they mark points when the coroutine cedes control and allows others to run. Unlike threads, coroutines display where our code can be interrupted and where it cannot. In his illuminating essay "Unyielding"[^4], Glyph Lefkowitz writes, "Threads make local reasoning difficult, and local reasoning is perhaps the most important thing in software development." Explicitly yielding, however, makes it possible to "understand the behavior (and thereby, the correctness) of a routine by examining the routine itself rather than examining the entire system."
-
+但是当我们打开我们的眼睛并专注于`yield from`语句时，我们看到它们在协程退出控制并允许其他人运行时标记了重点。 与线程不同，协同程序显示我们的代码可以中断的地方，而线程不能。 在他的论文"Unyielding"[^ 4]中，Glyph Lefkowitz写道：“线程使得局部推理变得困难，局部推理也许是软件开发中最重要的。 然而，显式产生可以通过检查例程本身而不是检查整个系统来“理解例程的行为（正确性）。
 This chapter was written during a renaissance in the history of Python and async. Generator-based coroutines, whose devising you have just learned, were released in the "asyncio" module with Python 3.4 in March 2014. In September 2015, Python 3.5 was released with coroutines built in to the language itself. These native coroutinesare declared with the new syntax "async def", and instead of "yield from", they use the new "await" keyword to delegate to a coroutine or wait for a Future.
-
+章是在Python和异步的历史上复兴期间写的。 基于生成器的协程，它的设计你刚刚学会了，在2014年3月的Python 3.4的“asyncio”模块中发布。2015年9月，Python 3.5发布了内置语言本身的协同程序。 这些本地协程用新语法“async def”声明，而不是“yield from”，它们使用新的“await”关键字来委派协程或等待Future。
 Despite these advances, the core ideas remain. Python's new native coroutines will be syntactically distinct from generators but work very similarly; indeed, they will share an implementation within the Python interpreter. Task, Future, and the event loop will continue to play their roles in asyncio.
-
+尽管有这些进展，核心思想仍然存在。 Python的新本地协同程序在语法上不同于生成器，但工作非常相似; 实际上，他们将在Python解释器中共享一个实现。 Task, Future, 和event loop将继续在asyncio中发挥他们的角色。
 Now that you know how asyncio coroutines work, you can largely forget the details. The machinery is tucked behind a dapper interface. But your grasp of the fundamentals empowers you to code correctly and efficiently in modern async environments.
-
+现在你知道asyncio协程如何工作，你可以在很大程度上忘记细节。 机械被塞在一个dapper接口后面。 但是你对基础知识的掌握使你能够在现代异步环境中正确有效地编程。
 [^4]: [https://glyph.twistedmatrix.com/2014/02/unyielding.html](https://glyph.twistedmatrix.com/2014/02/unyielding.html)
 
 [^5]: [https://docs.python.org/3/library/queue.html](https://docs.python.org/3/library/queue.html)
